@@ -4,34 +4,122 @@ output: html_document
 date: "2025-10-31"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+How does atorvastatin prescription dose vary across Scotland ?
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
+Downlaod libraries
+```{r}
 library(tidyverse)
-library(ggplot2)
-summary(cars)
+library(janitor) # cleaning data
+library(gt) # tables
+library(here) # directory structure (will be useful later)
 ```
 
-## Including Plots
+Load data
+```{r}
+hb_data_2025 <- read_csv("https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/9de908b3-9c28-4cc3-aa32-72350a0579d1/download/hb_pitc2025_01_06.csv") %>% 
+  clean_names()
 
-You can also embed plots, for example:
+health_board_names <- read_csv("https://www.opendata.nhs.scot/dataset/9f942fdb-e59e-44f5-b534-d6e17229cc7b/resource/652ff726-e676-4a20-abda-435b98dd7bdc/download/hb14_hb19.csv")
 
-```{r pressure, echo=FALSE}
-
-cars %>% 
-  ggplot(aes(x = speed, y = dist)) +
-  geom_col()
-
-plot(pressure)
-
+library(readr)
+population_data <- read_csv(here( "data", "UV102a_age_health_board_census.csv"), skip = 10) 
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Edit prescription data:
+```{r}
+library(readr)
+population_data <- read_csv(here("data/UV102a_age_health_board_census.csv"), skip = 10) %>% 
+  rename(Spare = "...6",
+         hb_name = "Health Board Area 2019",
+         hb_population = Count) %>% 
+  # filter the data so that we get the population of the entire health board
+  filter(Age == "All people" & Sex == "All people") %>% 
+  # select only the relevant columns
+  select(hb_name, hb_population) %>% 
+  # change health board names so they match the prescription data
+  mutate(hb_name = paste("NHS", hb_name))
+```
+
+Join prescription with health board names
+```{r}
+names_prescription_joined_data <- hb_data_2025 %>% 
+  full_join(health_board_names, join_by(hbt == HB))
+```
+
+Filter for only cholesterol (STATIN) drugs
+```{r}
+filtered_by_cholesterol <- names_prescription_joined_data %>% 
+  filter(str_detect(bnf_item_description, "STATIN")) %>% 
+  group_by(bnf_item_description)
+```
+
+Arrange in descending order and select columns:
+```{r}
+filtered_arranged <- filtered_by_cholesterol %>% 
+  select(c(hbt, bnf_item_description, paid_quantity)) %>%
+  filter(!is.na(bnf_item_description)) %>% 
+  group_by(bnf_item_description) %>% 
+  arrange(desc(paid_quantity)) 
+```
+
+Join health board names and jan-june 2025 data with population data 2019:
+```{r}
+joined_final <- filtered_by_cholesterol %>% 
+  left_join(population_data, by=c("HBName" = "hb_name"))
+```
+ 
+ Remove unnecessary columns:
+```{r}
+removed_joined_final <- joined_final %>% 
+  select(hbt, bnf_item_description, paid_quantity, paid_date_month, HBName, hb_population) %>% 
+  arrange(desc(paid_quantity))
+```
+
+Filtering for atorvastatin - because was highest prescribed statin
+Also mutating to add column including low, medium, high doses:
+```{r}
+atorvastatin_data <- removed_joined_final %>% 
+  filter(str_detect(bnf_item_description, "ATORVASTATIN")) %>% 
+  mutate(dose_category = case_when(
+    bnf_item_description %in% c("ATORVASTATIN 10MG TABLETS", "ATORVASTATIN 20MG TABLETS", "ATORVASTATIN 20MG/5ML ORAL SUSPENSION SUGAR FREE") ~ "Low",
+    bnf_item_description %in% c("ATORVASTATIN 30MG TABLETS", "ATORVASTATIN 40MG TABLETS") ~ "Medium",
+    bnf_item_description %in% c("ATORVASTATIN 60MG TABLETS", "ATORVASTATIN 80MG TABLETS") ~ "High")) 
+```
+
+Tibble: to visualise what the different doses of A are:
+```{r}
+atorvastatin_data %>% 
+  distinct(bnf_item_description) %>% 
+  arrange(bnf_item_description)
+```
+
+Atorvastatin per head data and plotted in chart:
+This is done to make the data more representative of actual figures whereby it shows prescription per head. Misleading figures would be created if this was not done. 
+```{r}
+atorvastatin_per_head <- atorvastatin_data %>% 
+  filter(str_detect(bnf_item_description, "ATORVASTATIN")) %>%   filter(!is.na(HBName)) %>% 
+  group_by(HBName) %>% 
+  summarise(quantity_per_head = sum(paid_quantity)/mean(hb_population))
+
+per_head_chart <- atorvastatin_per_head %>% 
+  ggplot(aes(x = quantity_per_head, y = reorder(HBName, quantity_per_head))) +
+  geom_bar(stat = "identity") +
+  labs(title = "Prescription of atorvastatin per person in each health board in Scotland",
+       x = "Quantity per head",
+       y = "Health Board")
+per_head_chart
+```
+
+
+Plotting data:
+```{r}
+plot_data <- atorvastatin_data %>% 
+  ggplot(aes(x = dose_category, y = paid_quantity, fill = dose_category)) +
+  geom_col() +
+    facet_wrap(~HBName)
+plot_data
+```
+ 
+
+
+
