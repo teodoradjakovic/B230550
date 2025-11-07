@@ -25,7 +25,7 @@ library(readr)
 population_data <- read_csv(here( "data", "UV102a_age_health_board_census.csv"), skip = 10) 
 ```
 
-Edit prescription data:
+Edit population data:
 ```{r}
 library(readr)
 population_data <- read_csv(here("data/UV102a_age_health_board_census.csv"), skip = 10) %>% 
@@ -53,6 +53,40 @@ filtered_by_cholesterol <- names_prescription_joined_data %>%
   group_by(bnf_item_description)
 ```
 
+Including all sttains used:
+```{r}
+tibble <- filtered_by_cholesterol %>% 
+  distinct(bnf_item_description) %>% 
+  arrange(bnf_item_description)
+# list of drugs used:
+#atorvastatin, fluvastatin, nystatin, pravastatin, rosuvastatin, sandostatin, simvastatin.
+```
+
+Making table of all statin drugs grouped:
+```{r}
+all_statins <- filtered_by_cholesterol %>% 
+  select(c(hbt, bnf_item_description, paid_quantity, HBName))
+
+joined_all_statins <- all_statins %>% 
+  left_join(population_data, by = c("HBName" = "hb_name")) %>% 
+  mutate(drug_group = str_extract(bnf_item_description, "ATORVASTATIN|FLUVASTATIN|NYSTATIN|PRAVASTATIN|ROSUVASTATIN|SANDOSTATIN|SIMVASTATIN")) %>% 
+  mutate(quantity_per_head = sum(paid_quantity)/mean(hb_population)) %>% 
+  filter(!is.na(drug_group) & !is.na(HBName))
+```
+
+Plotting all statin drugs per head in each healthboard:
+```{r}
+all_statins_plot <- joined_all_statins %>% 
+ggplot(aes(x = drug_group, y = quantity_per_head, fill = drug_group)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_wrap(~HBName) +
+  labs(title = "Number of prescriptions of cholesterol lowerinf drugs per head in Health Boards in Scotland in 2025", x = "Drug Group", y = "Quantity per Head", fill = "Drug Group")
+all_statins_plot
+```
+
+We found that atorvastatin is the most prescribed cholesterol lowering drug in Scotland by the NHS. It is often the first to be prescribed, and can be frequently prescribed at a low dose for preventative measures. Therefore, we go on to look at the variation of different doses of atrovastatin among health boards in Scotland.
+
 Arrange in descending order and select columns:
 ```{r}
 filtered_arranged <- filtered_by_cholesterol %>% 
@@ -64,13 +98,13 @@ filtered_arranged <- filtered_by_cholesterol %>%
 
 Join health board names and jan-june 2025 data with population data 2019:
 ```{r}
-joined_final <- filtered_by_cholesterol %>% 
+pop_hb_joined <- filtered_by_cholesterol %>% 
   left_join(population_data, by=c("HBName" = "hb_name"))
 ```
  
  Remove unnecessary columns:
 ```{r}
-removed_joined_final <- joined_final %>% 
+removed_joined_final <- pop_hb_joined %>% 
   select(hbt, bnf_item_description, paid_quantity, paid_date_month, HBName, hb_population) %>% 
   arrange(desc(paid_quantity))
 ```
@@ -86,7 +120,7 @@ atorvastatin_data <- removed_joined_final %>%
     bnf_item_description %in% c("ATORVASTATIN 60MG TABLETS", "ATORVASTATIN 80MG TABLETS") ~ "High")) 
 ```
 
-Tibble: to visualise what the different doses of A are:
+Tibble: to visualise what the different doses of atorvastatin are:
 ```{r}
 atorvastatin_data %>% 
   distinct(bnf_item_description) %>% 
@@ -99,24 +133,27 @@ This is done to make the data more representative of actual figures whereby it s
 atorvastatin_per_head <- atorvastatin_data %>% 
   filter(str_detect(bnf_item_description, "ATORVASTATIN")) %>%   filter(!is.na(HBName)) %>% 
   group_by(HBName) %>% 
-  summarise(quantity_per_head = sum(paid_quantity)/mean(hb_population))
+  mutate(quantity_per_head = sum(paid_quantity)/mean(hb_population))
 
 per_head_chart <- atorvastatin_per_head %>% 
-  ggplot(aes(x = quantity_per_head, y = reorder(HBName, quantity_per_head))) +
+  ggplot(aes(x = quantity_per_head, y = reorder(HBName, quantity_per_head), fill = HBName)) +
   geom_bar(stat = "identity") +
   labs(title = "Prescription of atorvastatin per person in each health board in Scotland",
        x = "Quantity per head",
-       y = "Health Board")
+       y = "Health Board", 
+       fill = "Health Board")
 per_head_chart
 ```
 
 
-Plotting data:
+Plotting atorvastatin per head data for each dose category:
 ```{r}
-plot_data <- atorvastatin_data %>% 
-  ggplot(aes(x = dose_category, y = paid_quantity, fill = dose_category)) +
+
+plot_data <- atorvastatin_per_head %>% 
+  ggplot(aes(x = dose_category, y = quantity_per_head, fill = dose_category)) +
   geom_col() +
-    facet_wrap(~HBName)
+    facet_wrap(~HBName) +
+  labs(title = "Prescriptions of Low, Medium, and High dose Atorvastatin per head in different Health Boards in Scotland in 2025", x = "Atorvastatin Dose Category", y = "Quantity per Head", fill = "Dose Category")
 plot_data
 ```
  
