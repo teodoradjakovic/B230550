@@ -4,7 +4,7 @@ output: html_document
 date: "2025-10-31"
 ---
 
-How does atorvastatin prescription dose vary across Scotland ?
+Exploring the relationship between number of cholesterol-lowering drug prescriptions and socioeconomic group in Health Boards across Scotland 2024-2025.
 
 Downlaod libraries
 ```{r}
@@ -14,15 +14,35 @@ library(gt) # tables
 library(here) # directory structure (will be useful later)
 ```
 
-Load data
+Load data:
+I chose to incorporate data from the end of 2024 and beginning of 2025 to give a representative account of the most recent data available of Scotland.
 ```{r}
+#health board data for july-december 2024 and jan-june 2025
 hb_data_2025 <- read_csv("https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/9de908b3-9c28-4cc3-aa32-72350a0579d1/download/hb_pitc2025_01_06.csv") %>% 
-  clean_names()
+  clean_names() %>% 
+  select(hbt, bnf_item_description, paid_quantity)
 
-health_board_names <- read_csv("https://www.opendata.nhs.scot/dataset/9f942fdb-e59e-44f5-b534-d6e17229cc7b/resource/652ff726-e676-4a20-abda-435b98dd7bdc/download/hb14_hb19.csv")
+hb_data_2024 <- read_csv("https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/f3b9f2e2-66c0-4310-9b8e-734781d2ed0a/download/hb_pitc2024_07_12-1.csv") %>% 
+  clean_names() %>% 
+  select(hbt, bnf_item_description, paid_quantity)
 
+#health board names associated with each HB code
+health_board_names <- read_csv("https://www.opendata.nhs.scot/dataset/9f942fdb-e59e-44f5-b534-d6e17229cc7b/resource/652ff726-e676-4a20-abda-435b98dd7bdc/download/hb14_hb19.csv") %>% 
+  clean_names() %>% 
+  select(hb, hb_name)
+
+#Scotland population data
 library(readr)
 population_data <- read_csv(here( "data", "UV102a_age_health_board_census.csv"), skip = 10) 
+
+#Scotland National Statistics Socio-economic Classification (NS-SeC) of Household Reference Person
+se_data <- read_csv(here( "data", "table_2025-11-12_18-21-02.csv"), skip = 10) 
+  
+```
+
+Join 2024 and 2025 data:
+```{r}
+hb_all <- bind_rows(hb_data_2024, hb_data_2025)
 ```
 
 Edit population data:
@@ -32,131 +52,122 @@ population_data <- read_csv(here("data/UV102a_age_health_board_census.csv"), ski
   rename(Spare = "...6",
          hb_name = "Health Board Area 2019",
          hb_population = Count) %>% 
-  # filter the data so that we get the population of the entire health board
   filter(Age == "All people" & Sex == "All people") %>% 
-  # select only the relevant columns
   select(hb_name, hb_population) %>% 
-  # change health board names so they match the prescription data
   mutate(hb_name = paste("NHS", hb_name))
 ```
 
-Join prescription with health board names
+Grouping SE data into low, middle and high SE class:
 ```{r}
-names_prescription_joined_data <- hb_data_2025 %>% 
-  full_join(health_board_names, join_by(hbt == HB))
+se_data <- read_csv(here( "data", "table_2025-11-12_18-21-02.csv"), skip = 10) %>%
+  #grouping all 15 levels of socioeconomic group to make data more easily digestable without exclusing any groups of data groups to maintain representation.
+  mutate(upper = rowSums(across(c("L1: Employers in large establishments", "L2: Higher managerial and administrative occupations", "L3: Higher professional occupations")), na.rm = TRUE),
+         middle = rowSums(across(c("L4: Lower professional and higher technical occupations", "L5: Lower managerial and administrative occupations", "L6: Higher supervisory occupations", "L7: Intermediate occupations", "L8: Employers in small establishments", "L9: Own account workers")), na.rm = TRUE), 
+         low = rowSums(across(c("L10: Lower supervisory occupations", "L11: Lower technical occupations", "L12: Semi-routine occupations", "L13: Routine occupations", "L14.1: Never worked", "L14.2: Long-term unemployed", "L15: Full-time students"))), na.rm = TRUE) %>% 
+  select("NS-SeC of Household Reference Person", "All occupied households", "upper", "middle", "low") %>% 
+  clean_names() %>% 
+#removing NA values 
+  drop_na() %>% 
+  mutate(
+    upper = as.numeric(upper),
+    middle = as.numeric(middle),
+    low = as.numeric(low),
+    all_occupied_households = as.numeric(all_occupied_households)) %>% 
+  # finding percentages for each socioeconomic group
+  mutate(upper_pct = upper/all_occupied_households*100,
+         middle_pct = middle/all_occupied_households*100,
+         low_pct = low/all_occupied_households*100) %>% 
+  pivot_longer(cols = c(upper_pct, middle_pct, low_pct), 
+               names_to = "socioeconomic_group",
+               values_to = "households")
+#plotting SE data
+se_data_plot <- se_data %>% 
+  ggplot(aes(x = ns_se_c_of_household_reference_person, y = households, fill = socioeconomic_group)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ se_data_plot 
+```
+This plot depicts the socioeconomic groups categorised into upper, middle, and low across Health Boards in Scotland. There does not seem to be a huge discrepancy - Lothian has the highest percentage of households in the upper percentile, with Western Isles and Dumfries and Galloway having the lowest in the upper percentile of socioeconomic group. We aim to investigate whether or not there is a correlation between socioeconomic group and number of cholesterol-lowering drug prescriptions among Scottish Health Boards.
+
+Join prescription with health board names and filter for only cholesterol-lowering drugs:
+```{r}
+cholesterol_lowering_prescriptions <- hb_all %>% 
+  full_join(health_board_names, join_by(hbt == hb)) %>% 
+  #filter for only cholesterol (STATIN) drugs
+   filter(str_detect(bnf_item_description, "STATIN")) %>% 
+  group_by(bnf_item_description) %>% 
+  select(hbt, bnf_item_description, paid_quantity, hb_name)
 ```
 
-Filter for only cholesterol (STATIN) drugs
+Find all statins used - this is done to obtain a list of all statins without repetition, to more easily visualise:
 ```{r}
-filtered_by_cholesterol <- names_prescription_joined_data %>% 
-  filter(str_detect(bnf_item_description, "STATIN")) %>% 
-  group_by(bnf_item_description)
-```
-
-Including all sttains used:
-```{r}
-tibble <- filtered_by_cholesterol %>% 
+tibble <- cholesterol_lowering_prescriptions %>% 
   distinct(bnf_item_description) %>% 
   arrange(bnf_item_description)
 # list of drugs used:
-#atorvastatin, fluvastatin, nystatin, pravastatin, rosuvastatin, sandostatin, simvastatin.
+#atorvastatin, fluvastatin, nystatin, pravastatin, rosuvastatin, sandostatin, simvastatin, ecostatin.
 ```
 
 Making table of all statin drugs grouped:
+Drugs were grouped due to the large variation in doses for each drug which make number of prescriptions themselves unclear. We did grouping so that we could visualise and better answer the proposed hypothesis.
 ```{r}
-all_statins <- filtered_by_cholesterol %>% 
-  select(c(hbt, bnf_item_description, paid_quantity, HBName))
-
-joined_all_statins <- all_statins %>% 
-  left_join(population_data, by = c("HBName" = "hb_name")) %>% 
-  mutate(drug_group = str_extract(bnf_item_description, "ATORVASTATIN|FLUVASTATIN|NYSTATIN|PRAVASTATIN|ROSUVASTATIN|SANDOSTATIN|SIMVASTATIN")) %>% 
+grouped_cholesterol_lowering_prescriptions <- cholesterol_lowering_prescriptions %>% 
+  left_join(population_data, by = c("hb_name" = "hb_name")) %>% 
+  mutate(drug_group = str_extract(bnf_item_description, "ATORVASTATIN|FLUVASTATIN|NYSTATIN|PRAVASTATIN|ROSUVASTATIN|SANDOSTATIN|SIMVASTATIN|ECOSTATIN")) %>% 
   mutate(quantity_per_head = sum(paid_quantity)/mean(hb_population)) %>% 
-  filter(!is.na(drug_group) & !is.na(HBName))
+  filter(!is.na(drug_group) & !is.na(hb_name))
 ```
 
 Plotting all statin drugs per head in each healthboard:
 ```{r}
-all_statins_plot <- joined_all_statins %>% 
+grouped_cholesterol_lowering_prescriptions_plot <- grouped_cholesterol_lowering_prescriptions %>% 
 ggplot(aes(x = drug_group, y = quantity_per_head, fill = drug_group)) +
   geom_col() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  facet_wrap(~HBName) +
-  labs(title = "Number of prescriptions of cholesterol lowerinf drugs per head in Health Boards in Scotland in 2025", x = "Drug Group", y = "Quantity per Head", fill = "Drug Group")
-all_statins_plot
+  facet_wrap(~hb_name) +
+  labs(title = "Number of prescriptions of cholesterol lowering drugs per head in Health Boards in Scotland in 2025", x = "Drug Group", y = "Quantity per Head", fill = "Drug Group")
+grouped_cholesterol_lowering_prescriptions_plot
 ```
 
-We found that atorvastatin is the most prescribed cholesterol lowering drug in Scotland by the NHS. It is often the first to be prescribed, and can be frequently prescribed at a low dose for preventative measures. Therefore, we go on to look at the variation of different doses of atrovastatin among health boards in Scotland.
-
-Arrange in descending order and select columns:
-```{r}
-filtered_arranged <- filtered_by_cholesterol %>% 
-  select(c(hbt, bnf_item_description, paid_quantity)) %>%
-  filter(!is.na(bnf_item_description)) %>% 
-  group_by(bnf_item_description) %>% 
-  arrange(desc(paid_quantity)) 
-```
+It is clear that 4 drugs stand out the most in the above plot. We found that atorvastatin is the most prescribed cholesterol lowering drug in Scotland by the NHS in 2024 and 2025. It is often the first to be prescribed, and can be frequently prescribed at a low dose for preventative measures. Therefore, we go on to look at the variation of different doses of atrovastatin among health boards in Scotland.
+In addition, we could explore atorvastatin, simvastatin, pravastatin, and rosuvastatin only as these are the only ones that appear in the plot.
 
 Join health board names and jan-june 2025 data with population data 2019:
 ```{r}
-pop_hb_joined <- filtered_by_cholesterol %>% 
-  left_join(population_data, by=c("HBName" = "hb_name"))
+pop_hb_joined <- grouped_cholesterol_lowering_prescriptions %>% 
+  left_join(population_data, by=c("hb_name" = "hb_name", "hb_population" = "hb_population"))
 ```
  
  Remove unnecessary columns:
 ```{r}
 removed_joined_final <- pop_hb_joined %>% 
-  select(hbt, bnf_item_description, paid_quantity, paid_date_month, HBName, hb_population) %>% 
+  select(hbt, bnf_item_description, paid_quantity, hb_name, hb_population) %>% 
   arrange(desc(paid_quantity))
 ```
 
-Filtering for atorvastatin - because was highest prescribed statin
-Also mutating to add column including low, medium, high doses:
+A)Filtering for 4 most prescribed drugs:
 ```{r}
-atorvastatin_data <- removed_joined_final %>% 
-  filter(str_detect(bnf_item_description, "ATORVASTATIN")) %>% 
-  mutate(dose_category = case_when(
-    bnf_item_description %in% c("ATORVASTATIN 10MG TABLETS", "ATORVASTATIN 20MG TABLETS", "ATORVASTATIN 20MG/5ML ORAL SUSPENSION SUGAR FREE") ~ "Low",
-    bnf_item_description %in% c("ATORVASTATIN 30MG TABLETS", "ATORVASTATIN 40MG TABLETS") ~ "Medium",
-    bnf_item_description %in% c("ATORVASTATIN 60MG TABLETS", "ATORVASTATIN 80MG TABLETS") ~ "High")) 
-```
+four_statins <- removed_joined_final %>% 
+  filter(str_detect(bnf_item_description, "ATORVASTATIN|SIMVASTATIN|PRAVASTATIN|ROSUVASTATIN")) %>% 
+  mutate(quantity_per_head = paid_quantity/hb_population) %>% 
+  mutate('drug_name' = case_when(str_starts(bnf_item_description, "ATORVA") ~ "ATORVASTATIN",
+                               str_starts(bnf_item_description, "SIMVA") ~ "SIMVASTATIN",
+                               str_starts(bnf_item_description, "PRAVA") ~ "PRAVASTATIN",
+                               str_starts(bnf_item_description, "ROSUVA") ~ "ROSUVASTATIN", TRUE ~ bnf_item_description))
 
-Tibble: to visualise what the different doses of atorvastatin are:
-```{r}
-atorvastatin_data %>% 
-  distinct(bnf_item_description) %>% 
-  arrange(bnf_item_description)
-```
-
-Atorvastatin per head data and plotted in chart:
-This is done to make the data more representative of actual figures whereby it shows prescription per head. Misleading figures would be created if this was not done. 
-```{r}
-atorvastatin_per_head <- atorvastatin_data %>% 
-  filter(str_detect(bnf_item_description, "ATORVASTATIN")) %>%   filter(!is.na(HBName)) %>% 
-  group_by(HBName) %>% 
-  mutate(quantity_per_head = sum(paid_quantity)/mean(hb_population))
-
-per_head_chart <- atorvastatin_per_head %>% 
-  ggplot(aes(x = quantity_per_head, y = reorder(HBName, quantity_per_head), fill = HBName)) +
-  geom_bar(stat = "identity") +
-  labs(title = "Prescription of atorvastatin per person in each health board in Scotland",
-       x = "Quantity per head",
-       y = "Health Board", 
-       fill = "Health Board")
-per_head_chart
-```
-
-
-Plotting atorvastatin per head data for each dose category:
-```{r}
-
-plot_data <- atorvastatin_per_head %>% 
-  ggplot(aes(x = dose_category, y = quantity_per_head, fill = dose_category)) +
+four_statins_plot <- four_statins %>% 
+  ggplot(aes(x = hb_name, y = quantity_per_head, fill = drug_name)) +
   geom_col() +
-    facet_wrap(~HBName) +
-  labs(title = "Prescriptions of Low, Medium, and High dose Atorvastatin per head in different Health Boards in Scotland in 2025", x = "Atorvastatin Dose Category", y = "Quantity per Head", fill = "Dose Category")
-plot_data
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Quantity per head of the four most prescribed cholesterol lowering drugs in each Health Board in July 2024 - June 2025", 
+       x = "Health Board", 
+       y = "Quantity per Head")
+four_statins_plot
+
 ```
- 
+
+
+
 
 
 
