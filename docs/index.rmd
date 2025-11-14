@@ -3,6 +3,9 @@ title: "Assessment"
 output: html_document
 date: "2025-10-31"
 ---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
 
 Exploring the relationship between number of cholesterol-lowering drug prescriptions and socioeconomic group in Health Boards across Scotland 2024-2025.
 

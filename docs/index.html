@@ -359,104 +359,33 @@ display: none;
 drug prescriptions and socioeconomic group in Health Boards across
 Scotland 2024-2025.</p>
 <p>Downlaod libraries</p>
-<pre class="r"><code>library(tidyverse)</code></pre>
-<pre><code>## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
-## ✔ dplyr     1.1.4     ✔ readr     2.1.5
-## ✔ forcats   1.0.0     ✔ stringr   1.5.2
-## ✔ ggplot2   4.0.0     ✔ tibble    3.3.0
-## ✔ lubridate 1.9.4     ✔ tidyr     1.3.1
-## ✔ purrr     1.1.0     
-## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
-## ✖ dplyr::filter() masks stats::filter()
-## ✖ dplyr::lag()    masks stats::lag()
-## ℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors</code></pre>
-<pre class="r"><code>library(janitor) # cleaning data</code></pre>
-<pre><code>## 
-## Attaching package: &#39;janitor&#39;
-## 
-## The following objects are masked from &#39;package:stats&#39;:
-## 
-##     chisq.test, fisher.test</code></pre>
-<pre class="r"><code>library(gt) # tables
+<pre class="r"><code>library(tidyverse)
+library(janitor) # cleaning data
+library(gt) # tables
 library(here) # directory structure (will be useful later)</code></pre>
-<pre><code>## here() starts at /Users/teodoradjakovic/Library/Mobile Documents/com~apple~CloudDocs/year_4/data-science/B230550</code></pre>
 <p>Load data: I chose to incorporate data from the end of 2024 and
 beginning of 2025 to give a representative account of the most recent
 data available of Scotland.</p>
 <pre class="r"><code>#health board data for july-december 2024 and jan-june 2025
 hb_data_2025 &lt;- read_csv(&quot;https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/9de908b3-9c28-4cc3-aa32-72350a0579d1/download/hb_pitc2025_01_06.csv&quot;) %&gt;% 
   clean_names() %&gt;% 
-  select(hbt, bnf_item_description, paid_quantity)</code></pre>
-<pre><code>## Rows: 733347 Columns: 9
-## ── Column specification ────────────────────────────────────────────────────────
-## Delimiter: &quot;,&quot;
-## chr (4): HBT, BNFItemCode, BNFItemDescription, PrescribedType
-## dbl (5): DMDCode, NumberOfPaidItems, PaidQuantity, GrossIngredientCost, Paid...
-## 
-## ℹ Use `spec()` to retrieve the full column specification for this data.
-## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
-<pre class="r"><code>hb_data_2024 &lt;- read_csv(&quot;https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/f3b9f2e2-66c0-4310-9b8e-734781d2ed0a/download/hb_pitc2024_07_12-1.csv&quot;) %&gt;% 
+  select(hbt, bnf_item_description, paid_quantity)
+
+hb_data_2024 &lt;- read_csv(&quot;https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/f3b9f2e2-66c0-4310-9b8e-734781d2ed0a/download/hb_pitc2024_07_12-1.csv&quot;) %&gt;% 
   clean_names() %&gt;% 
-  select(hbt, bnf_item_description, paid_quantity)</code></pre>
-<pre><code>## Warning: One or more parsing issues, call `problems()` on your data frame for details,
-## e.g.:
-##   dat &lt;- vroom(...)
-##   problems(dat)</code></pre>
-<pre><code>## Rows: 752709 Columns: 9
-## ── Column specification ────────────────────────────────────────────────────────
-## Delimiter: &quot;,&quot;
-## chr (4): HBT, BNFItemCode, BNFItemDescription, PrescribedType
-## dbl (5): DMDCode, NumberOfPaidItems, PaidQuantity, GrossIngredientCost, Paid...
-## 
-## ℹ Use `spec()` to retrieve the full column specification for this data.
-## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
-<pre class="r"><code>#health board names associated with each HB code
+  select(hbt, bnf_item_description, paid_quantity)
+
+#health board names associated with each HB code
 health_board_names &lt;- read_csv(&quot;https://www.opendata.nhs.scot/dataset/9f942fdb-e59e-44f5-b534-d6e17229cc7b/resource/652ff726-e676-4a20-abda-435b98dd7bdc/download/hb14_hb19.csv&quot;) %&gt;% 
   clean_names() %&gt;% 
-  select(hb, hb_name)</code></pre>
-<pre><code>## Rows: 18 Columns: 5
-## ── Column specification ────────────────────────────────────────────────────────
-## Delimiter: &quot;,&quot;
-## chr (3): HB, HBName, Country
-## dbl (2): HBDateEnacted, HBDateArchived
-## 
-## ℹ Use `spec()` to retrieve the full column specification for this data.
-## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
-<pre class="r"><code>#Scotland population data
+  select(hb, hb_name)
+
+#Scotland population data
 library(readr)
-population_data &lt;- read_csv(here( &quot;data&quot;, &quot;UV102a_age_health_board_census.csv&quot;), skip = 10) </code></pre>
-<pre><code>## New names:
-## • `` -&gt; `...6`</code></pre>
-<pre><code>## Warning: One or more parsing issues, call `problems()` on your data frame for details,
-## e.g.:
-##   dat &lt;- vroom(...)
-##   problems(dat)</code></pre>
-<pre><code>## Rows: 3657 Columns: 6
-## ── Column specification ────────────────────────────────────────────────────────
-## Delimiter: &quot;,&quot;
-## chr (4): Counting, Health Board Area 2019, Age, Sex
-## dbl (1): Count
-## lgl (1): ...6
-## 
-## ℹ Use `spec()` to retrieve the full column specification for this data.
-## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
-<pre class="r"><code>#Scotland National Statistics Socio-economic Classification (NS-SeC) of Household Reference Person
+population_data &lt;- read_csv(here( &quot;data&quot;, &quot;UV102a_age_health_board_census.csv&quot;), skip = 10) 
+
+#Scotland National Statistics Socio-economic Classification (NS-SeC) of Household Reference Person
 se_data &lt;- read_csv(here( &quot;data&quot;, &quot;table_2025-11-12_18-21-02.csv&quot;), skip = 10) </code></pre>
-<pre><code>## New names:
-## • `` -&gt; `...19`</code></pre>
-<pre><code>## Warning: One or more parsing issues, call `problems()` on your data frame for details,
-## e.g.:
-##   dat &lt;- vroom(...)
-##   problems(dat)</code></pre>
-<pre><code>## Rows: 18 Columns: 19
-## ── Column specification ────────────────────────────────────────────────────────
-## Delimiter: &quot;,&quot;
-## chr  (2): NS-SeC of Household Reference Person, All occupied households
-## dbl (16): L1: Employers in large establishments, L2: Higher managerial and a...
-## lgl  (1): ...19
-## 
-## ℹ Use `spec()` to retrieve the full column specification for this data.
-## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
 <p>Join 2024 and 2025 data:</p>
 <pre class="r"><code>hb_all &lt;- bind_rows(hb_data_2024, hb_data_2025)</code></pre>
 <p>Edit population data:</p>
@@ -468,21 +397,6 @@ population_data &lt;- read_csv(here(&quot;data/UV102a_age_health_board_census.cs
   filter(Age == &quot;All people&quot; &amp; Sex == &quot;All people&quot;) %&gt;% 
   select(hb_name, hb_population) %&gt;% 
   mutate(hb_name = paste(&quot;NHS&quot;, hb_name))</code></pre>
-<pre><code>## New names:
-## • `` -&gt; `...6`</code></pre>
-<pre><code>## Warning: One or more parsing issues, call `problems()` on your data frame for details,
-## e.g.:
-##   dat &lt;- vroom(...)
-##   problems(dat)</code></pre>
-<pre><code>## Rows: 3657 Columns: 6
-## ── Column specification ────────────────────────────────────────────────────────
-## Delimiter: &quot;,&quot;
-## chr (4): Counting, Health Board Area 2019, Age, Sex
-## dbl (1): Count
-## lgl (1): ...6
-## 
-## ℹ Use `spec()` to retrieve the full column specification for this data.
-## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
 <p>Grouping SE data into low, middle and high SE class:</p>
 <pre class="r"><code>se_data &lt;- read_csv(here( &quot;data&quot;, &quot;table_2025-11-12_18-21-02.csv&quot;), skip = 10) %&gt;%
   #grouping all 15 levels of socioeconomic group to make data more easily digestable without exclusing any groups of data groups to maintain representation.
@@ -504,23 +418,8 @@ population_data &lt;- read_csv(here(&quot;data/UV102a_age_health_board_census.cs
          low_pct = low/all_occupied_households*100) %&gt;% 
   pivot_longer(cols = c(upper_pct, middle_pct, low_pct), 
                names_to = &quot;socioeconomic_group&quot;,
-               values_to = &quot;households&quot;)</code></pre>
-<pre><code>## New names:
-## • `` -&gt; `...19`</code></pre>
-<pre><code>## Warning: One or more parsing issues, call `problems()` on your data frame for details,
-## e.g.:
-##   dat &lt;- vroom(...)
-##   problems(dat)</code></pre>
-<pre><code>## Rows: 18 Columns: 19
-## ── Column specification ────────────────────────────────────────────────────────
-## Delimiter: &quot;,&quot;
-## chr  (2): NS-SeC of Household Reference Person, All occupied households
-## dbl (16): L1: Employers in large establishments, L2: Higher managerial and a...
-## lgl  (1): ...19
-## 
-## ℹ Use `spec()` to retrieve the full column specification for this data.
-## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
-<pre class="r"><code>#plotting SE data
+               values_to = &quot;households&quot;)
+#plotting SE data
 se_data_plot &lt;- se_data %&gt;% 
   ggplot(aes(x = ns_se_c_of_household_reference_person, y = households, fill = socioeconomic_group)) +
   geom_col() +
