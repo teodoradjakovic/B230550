@@ -2,6 +2,8 @@
 title: "Assessment"
 output: html_document
 date: "2025-10-31"
+toc: true
+toc_float: true
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
@@ -17,6 +19,10 @@ library(tidyverse)
 library(janitor) # cleaning data
 library(gt) # tables
 library(here) # directory structure (will be useful later)
+library(gtExtras)
+library(kableExtra)
+library(plotly)
+
 ```
 
 Load data:
@@ -100,25 +106,29 @@ se_data_upper <- renamed_se_data %>%
 
 #writing a function for the theme
   theme_custom1 <- function(base_text_size = 10) {
-    theme_minimal(base_size = base_text_size) +
-      theme(plot.title = element_text(colour = "#a90c4b"),
+    theme_minimal(base_size = base_text_size, base_family = "Times New Roman") +
+      theme(plot.title = element_text(colour = "#a90c4b", face = "bold"),
                   axis.text.x = element_text(colour = "#a90c4b", angle = 45, hjust = 1),
             axis.text.y = element_text(colour = "#a90c4b"),
             axis.title = element_text(colour = "#a90c4b"),
-            plot.background = element_rect(fill = "#ffffe0"))
-    } 
+            plot.background = element_rect(fill = "#ffffe0"),)
+    }
 
 #plotting SE data
   se_data_plot <- se_data_upper %>% 
   ggplot(aes(x = hb_name, y = upper_household_pct, fill = upper_household_pct)) +
   geom_col() +
-  scale_fill_gradient(low = "#94023f", high = "#ffc5ee") +
+  scale_fill_gradient(low = "sandybrown", high = "#94023f") +
   theme_custom1() +
   labs(title = "National Statistics Socio-economic Classification of Households across Health Boards in Scotland",
        x = "Health Board",
-       y = "Percentage of Households in Upper Socioeconomic Group")
+       y = "Percentage of Households in Upper Socioeconomic Group",
+       fill = "% of population in upper percentile")
  se_data_plot 
- 
+
+ se_data_plotly <- plotly::ggplotly(se_data_plot, tooltip = "y") %>% 
+   layout(plot_bgcolor = "#ffffe0")
+ se_data_plotly
 ```
 
 This plot depicts the distribution of the upper socioeconomic group across Health Boards in Scotland. There does not seem to be a huge discrepancy - Lothian has the highest percentage of households in the upper percentile, with Western Isles and Dumfries and Galloway having the lowest in the upper percentile of socioeconomic group.
@@ -155,14 +165,31 @@ grouped_cholesterol_lowering_prescriptions <- cholesterol_lowering_prescriptions
 
 Plotting all statin drugs per head in each healthboard:
 ```{r}
+#creating vector to assign colours to each statin drug group
+drug_colors <- c(
+  "ATORVASTATIN" = "#a90c4b",
+  "ECOSTATIN" = "snow3", 
+  "FLUVASTATIN" = "sandybrown",
+  "NYSTATIN" = "seashell",
+  "PRAVASTATIN" = "pink3",
+  "ROSUVASTATIN" = "salmon",
+  "SANDOSTATIN" = "indianred",
+  "SIMVASTATIN" = "lightpink"
+)
+
 grouped_cholesterol_lowering_prescriptions_plot <- grouped_cholesterol_lowering_prescriptions %>% 
 ggplot(aes(x = drug_group, y = quantity_per_head, fill = drug_group)) +
   geom_col() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), text = "Times New Roman") +
   theme_custom1() +
+  scale_fill_manual(values = c(drug_colors)) +
   facet_wrap(~hb_name) +
   labs(title = "Number of prescriptions of cholesterol lowering drugs per head in Health Boards in Scotland in 2025", x = "Drug Group", y = "Quantity per Head", fill = "Drug Group")
 grouped_cholesterol_lowering_prescriptions_plot
+
+grouped_cholesterol_lowering_prescriptions_plot_plotly <- plotly::ggplotly(grouped_cholesterol_lowering_prescriptions_plot, tooltip = "y") %>% 
+   layout(plot_bgcolor = "#ffffe0")
+grouped_cholesterol_lowering_prescriptions_plot_plotly
 ```
 
 It is clear that 4 drugs stand out the most in the above plot. We found that atorvastatin is the most prescribed cholesterol lowering drug in Scotland by the NHS in 2024 and 2025. It is often the first to be prescribed, and can be frequently prescribed at a low dose for preventative measures. Therefore, we go on to look at the variation of different doses of atrovastatin among health boards in Scotland.
@@ -192,21 +219,12 @@ four_statins <- removed_joined_final %>%
                                str_starts(bnf_item_description, "PRAVA") ~ "PRAVASTATIN",
                                str_starts(bnf_item_description, "ROSUVA") ~ "ROSUVASTATIN", TRUE ~ bnf_item_description))
 
-four_statins_plot <- four_statins %>% 
-  ggplot(aes(x = hb_name, y = quantity_per_head, fill = drug_name)) +
-  geom_col() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  theme_custom1() +
-  labs(title = "Quantity per head of the four most prescribed cholesterol lowering drugs in each Health Board in July 2024 - June 2025", 
-       x = "Health Board", 
-       y = "Quantity per Head")
-four_statins_plot
-
 ```
  
 The British Heart Foundation explains correlation between deprivation in Scotland and heart disease. In Scotland, those living in the most deprived areas are almost twice as likely to die from heart and cardiovascular disease before age 75.
 https://www.bhf.org.uk/what-we-do/our-research/heart-statistics/health-inequalities-research/cardiovascular-inequalities-in-scotland-an-analysis
 
+This graph shows the correlation between socioeconomic group and number of statin prescriptions er health board. It is clear that NHS Dumfries and Galloway has the highest number of total prescriptions, with the lowest percentage of the population in the upper socioeconomic group, while NHS Lothian has lowest number of prescriptions but highest percentage of the population in the upper percentile.
 
 TABLE 4:
 Table collating all data including: health board, se group, four statin distribution per health board.
@@ -227,8 +245,39 @@ grouped_statin_doses_sum <- four_statins %>%
 table_data_joined <- grouped_statin_doses_sum %>% 
   full_join(se_data_upper, by = c("hb_name")) 
 
+#PLOT 3:
+#plotting 4 statins with % in upper percentile SE
+line_plot <- table_data_joined %>% 
+ggplot(aes(x = hb_name)) +
+  geom_col(aes(y = total_quantity_per_head, fill = drug_name)) +
+  geom_line(aes(y = upper_household_pct, group = 1), color = "black", size = 0.75) +
+  geom_text(aes(y = upper_household_pct, label = round(upper_household_pct, 2)), vjust = -2, size = 2.5, color = "black") +
+  scale_y_continuous(name = "Total Quantity per Head", sec.axis = sec_axis(~., name = "% in Upper SE Percentile")) +
+  scale_fill_manual(values = c(drug_colors)) +
+  labs(title = "The correlation between total statin prescription per head and % of population in upper SE percentile in each health board",
+       x = "Health Board", 
+       fill = "Drug Name") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme_custom1()
+line_plot
+
+line_plot_plotly <- plotly::ggplotly(line_plot, tooltip = "fill") %>% 
+   layout(plot_bgcolor = "#ffffe0")
+line_plot_plotly
+
+#creating a function for table theme
+theme_custom2 <- function(table_data_joined, ...){
+  table_data_joined %>% 
+    tab_options(table.background.color = "#ffffe0",
+                column_labels.background.color = "#a90c4b",
+                row_group.background.color = "sandybrown",
+                table.font.names = "Times New Roman")
+}
+
+#create table
 table_data_joined %>% 
 gt() %>% 
+  theme_custom2() %>% 
   cols_label(hb_name = "Health Board",
              drug_name = "Statin Drug Name",
              total_quantity_per_head = "Total Quantity per Head",
@@ -240,10 +289,24 @@ gt() %>%
                      fns = list("Overall Average" = ~mean(., na.rm = TRUE)),
                      fmt = list(~ fmt_number(., decimals = 2))) %>% 
   tab_header(title = "Quantity per Head of Statin Prescriptions Across Scotland with Percentage of Population in Upper Socioeconomic Group",
-             subtitle = "Among Health Boards in Scotland from July 2024 - June 2025")
-view(table_data_joined)
-  
+             subtitle = "Among Health Boards in Scotland from July 2024 - June 2025") %>% 
+  summary_rows(groups = everything(), columns = total_quantity_per_head, fns = list(total = "sum"), fmt = list(~ fmt_number(., decimals = 2))) %>% 
+  summary_rows(groups = everything(), columns = upper_household_pct, fns = list(average = "mean"), fmt = list(~ fmt_number(., decimals = 2))) %>% 
+  gt_plt_bar(upper_household_pct, labels = TRUE, width = 60, color = "#a90c4b", text = "outside-end")  %>% 
+  tab_options(table.width = pct(100), container.height = px(350), container.width  = px(600))
+
+
+
+ 
 ```
+
+Conclusion:
+
+References:
+
+https://pmc.ncbi.nlm.nih.gov/articles/PMC4232871/
+
+https://www.bhf.org.uk/what-we-do/our-research/heart-statistics/health-inequalities-research/
 
 
 
