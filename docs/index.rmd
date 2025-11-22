@@ -1,84 +1,88 @@
 ---
-title: "Assessment"
+title: "Exploring the relationship between number of cholesterol-lowering drug prescriptions and socioeconomic group in Health Boards across Scotland 2024-2025."
 output: html_document
 date: "2025-10-31"
 toc: true
 toc_float: true
+toc_depth: 3
+number_sections: true
+theme: flatly
+
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-Exploring the relationship between number of cholesterol-lowering drug prescriptions and socioeconomic group in Health Boards across Scotland 2024-2025.
+# Introduction
 
-A previous study in 2014, found that diabetes and cardiovascular disease risk factors are more prevalent in deprived than affluent populations. Such factors include smoking status, BMI, cholesterol levels, and age. https://pmc.ncbi.nlm.nih.gov/articles/PMC4232871/ In this report, we look into if there is a correlation between number of cholesterol-lowering drug prescriptions and socioeconomic group across health boards in Scotland. 
+A previous study in 2014, found that diabetes and cardiovascular disease risk factors are more prevalent in deprived than affluent populations in Scotland. Such factors include smoking status, BMI, cholesterol levels, and age (Jones et al., 2014). In this report, we look into if there is a correlation between number of cholesterol-lowering drug prescriptions and socioeconomic group across health boards in Scotland. 
 
-Laod libraries:
+## Loading Libraries
+
 ```{r}
 library(tidyverse)
 library(janitor) # cleaning data
 library(gt) # tables
-library(here) # directory structure (will be useful later)
+library(here)
 library(gtExtras)
 library(kableExtra)
-library(plotly)
-
+library(plotly) # interactive plots
 ```
 
-Load data:
-I chose to incorporate data from the end of 2024 and beginning of 2025 to give a representative account of the most recent data available of Scotland.
+## Loading Data
+
+I joined data from the end of 2024 and beginning of 2025 to give a representative account of the most recent data available of Scotland. In combination with this health board data, I also loaded population so I could calculate number of prescriptions per head, as well as data from the Scotland census including Scotland national statistics socio-economic classification (NS-SeC) of household reference person.
 ```{r}
-#health board data for January - June 2025
+# health board data for January - June 2025
 hb_data_2025 <- read_csv("https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/9de908b3-9c28-4cc3-aa32-72350a0579d1/download/hb_pitc2025_01_06.csv") %>% 
   clean_names() %>% 
   select(hbt, bnf_item_description, paid_quantity)
 
-#health board data for July - December 2024
+# health board data for July - December 2024
 hb_data_2024 <- read_csv("https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/f3b9f2e2-66c0-4310-9b8e-734781d2ed0a/download/hb_pitc2024_07_12-1.csv") %>% 
   clean_names() %>% 
   select(hbt, bnf_item_description, paid_quantity)
 
-#health board names associated with each HB code
+# joining health board data from 2024 and 2025.
+hb_all <- bind_rows(hb_data_2024, hb_data_2025)
+
+# health board names associated with each HB code
 health_board_names <- read_csv("https://www.opendata.nhs.scot/dataset/9f942fdb-e59e-44f5-b534-d6e17229cc7b/resource/652ff726-e676-4a20-abda-435b98dd7bdc/download/hb14_hb19.csv") %>% 
   clean_names() %>% 
   select(hb, hb_name)
 
-#Scotland census population data
-population_data <- read_csv(here( "data", "UV102a_age_health_board_census.csv"), skip = 10) 
-
-#Scotland National Statistics Socio-economic Classification (NS-SeC) of Household Reference Person
-se_data <- read_csv(here( "data", "table_2025-11-12_18-21-02.csv"), skip = 10) 
-  
-```
-
-Join 2024 and 2025 data:
-```{r}
-hb_all <- bind_rows(hb_data_2024, hb_data_2025)
-```
-
-Reduce population data to only display HB name and HB population:
-```{r}
-population_data <- read_csv(here("data/UV102a_age_health_board_census.csv"), skip = 10) %>% 
-  rename(Spare = "...6",
+# Scotland census population data
+population_data <- read_csv(here( "data", "UV102a_age_health_board_census.csv"), skip = 10) %>% 
+  rename(Spare = "...6", #selecting only HB name and HB population
          hb_name = "Health Board Area 2019",
          hb_population = Count) %>% 
   filter(Age == "All people" & Sex == "All people") %>% 
   select(hb_name, hb_population) %>% 
   mutate(hb_name = paste("NHS", hb_name))
+
+# Scotland National Statistics Socio-economic Classification (NS-SeC) of Household Reference Person
+se_data <- read_csv(here( "data", "table_2025-11-12_18-21-02.csv"), skip = 10) 
+  
 ```
 
-PLOT 1: Socioeconomic data
-Plot 1 aims to investigate and rank the Scottish health boards into upper, middle, and low SE group. Further, the data is filtered for only the upper percentile of each health board population and ranked from highest to lowest.
-Grouping SE data into low, middle and high SE class:
+# Plot 1 
+
+Socioeconomic data
+Plot 1 aims to investigate and rank the Scottish health boards into upper, middle, and low SE group. Further, the data is filtered for only the upper percentile of each health board population so that we later directly compare only the percentage of the population of a given health board in the upper socioeconomic percentile, with number of cholesterol-lowering prescriptions.
+
+## Data Wrangling
+
+Grouping SE data into low, middle and upper SE class:
 ```{r}
 se_data <- read_csv(here( "data", "table_2025-11-12_18-21-02.csv"), skip = 10) %>%
-  #grouping all 15 levels of socioeconomic group to make data more easily digestible without excluding any groups of data groups to maintain representation.
+  # grouping all 15 levels of socioeconomic group to make data more easily digestible without excluding any data groups to maintain representation.
   mutate(upper = rowSums(across(c("L1: Employers in large establishments", "L2: Higher managerial and administrative occupations", "L3: Higher professional occupations")), na.rm = TRUE),
          middle = rowSums(across(c("L4: Lower professional and higher technical occupations", "L5: Lower managerial and administrative occupations", "L6: Higher supervisory occupations", "L7: Intermediate occupations", "L8: Employers in small establishments", "L9: Own account workers")), na.rm = TRUE), 
          low = rowSums(across(c("L10: Lower supervisory occupations", "L11: Lower technical occupations", "L12: Semi-routine occupations", "L13: Routine occupations", "L14.1: Never worked", "L14.2: Long-term unemployed", "L15: Full-time students"))), na.rm = TRUE) %>% 
-  select("NS-SeC of Household Reference Person", "All occupied households", "upper", "middle", "low") %>%   
+  select("NS-SeC of Household Reference Person", "All occupied households", "upper", "middle", "low") %>% 
   clean_names() %>% 
-#removing NA values 
+  
+# removing NA values and converting values to be numeric. This allows us to then find percentage people so we can directly compare independent of large population differences. 
   drop_na() %>% 
     mutate(
     upper = as.numeric(upper),
@@ -93,16 +97,21 @@ se_data <- read_csv(here( "data", "table_2025-11-12_18-21-02.csv"), skip = 10) %
                names_to = "socioeconomic_group",
                values_to = "households") 
 
- #renaming ns_se_c column and adding NHS for collated table
+ # renaming ns_se_c column and adding NHS for table 4
  renamed_se_data <- se_data %>% 
   rename(hb_name = ns_se_c_of_household_reference_person) %>% 
   mutate(hb_name = paste0("NHS ", hb_name))  
 
-#filtering for only percentage of households in upper quartile per health board
+#filtering for only percentage of households in upper percentile per health board as this is what we are interested in.
 se_data_upper <- renamed_se_data %>%
   filter(socioeconomic_group == "upper_pct") %>% 
   select(-all_occupied_households, -upper, -middle, -low, -socioeconomic_group) %>% 
   rename(upper_household_pct = households)
+```
+
+## Creating a function for the theme
+
+```{r}
 
 #writing a function for the theme
   theme_custom1 <- function(base_text_size = 10) {
@@ -113,39 +122,50 @@ se_data_upper <- renamed_se_data %>%
             axis.title = element_text(colour = "#a90c4b"),
             plot.background = element_rect(fill = "#ffffe0"),)
     }
+```
 
-#plotting SE data
+## Plotting data for percentage of population in upper socioeconomic percentile
+
+```{r}
+# plotting SE data
   se_data_plot <- se_data_upper %>% 
+    mutate(text = paste0("% in upper socioeconomic percentile:", upper_household_pct, round(upper_household_pct, 2))) %>% 
   ggplot(aes(x = hb_name, y = upper_household_pct, fill = upper_household_pct)) +
   geom_col() +
-  scale_fill_gradient(low = "sandybrown", high = "#94023f") +
+  scale_fill_gradient(low = "sandybrown", high = "#94023f") + # visual indicator of quantity.
   theme_custom1() +
-  labs(title = "National Statistics Socio-economic Classification of Households across Health Boards in Scotland",
+  labs(title = "National Statistics Socio-economic Classification of Households \n across Health Boards in Scotland",
        x = "Health Board",
        y = "Percentage of Households in Upper Socioeconomic Group",
        fill = "% of population in upper percentile")
- se_data_plot 
 
+# interactive plot - hover for exact value.
  se_data_plotly <- plotly::ggplotly(se_data_plot, tooltip = "y") %>% 
    layout(plot_bgcolor = "#ffffe0")
  se_data_plotly
 ```
 
-This plot depicts the distribution of the upper socioeconomic group across Health Boards in Scotland. There does not seem to be a huge discrepancy - Lothian has the highest percentage of households in the upper percentile, with Western Isles and Dumfries and Galloway having the lowest in the upper percentile of socioeconomic group.
+This plot depicts the distribution of the upper socioeconomic group across Health Boards in Scotland. NHS Lothian has the highest percentage of households in the upper percentile, with Western Isles and Dumfries and Galloway having the lowest in the upper percentile of socioeconomic group. 
+We now investigate the number of prescriptions of all cholesterol-lowering drugs per head in each health board.
 
-PLOT 2: Number of prescriptions of cholesterol-lowering drugs per head in Health Boards in Scotland in 2024-2025.
-Join prescription data with health board names and filter for only cholesterol-lowering drugs, removing unnecessary rows and columns:
+# Plot 2
+
+The number of prescriptions of cholesterol-lowering drugs per head in Health Boards in Scotland in 2024-2025.
+
+## Data Wrangling
+
 ```{r}
+# joining prescription data with health board names.
 cholesterol_lowering_prescriptions <- hb_all %>% 
   full_join(health_board_names, join_by(hbt == hb)) %>% 
-  #filter for only cholesterol (STATIN) drugs
+# filter for only cholesterol- lowering drugs indicated by "STATIN" in the name.
    filter(str_detect(bnf_item_description, "STATIN")) %>% 
   group_by(bnf_item_description) %>% 
   select(hbt, bnf_item_description, paid_quantity, hb_name)
 ```
 
-Find all statins used - this is done to obtain a list of all statins without repetition, to more easily visualise:
 ```{r}
+# a visual depiction of all statin drugs in the all health boards in 2024 and 2025.
 tibble <- cholesterol_lowering_prescriptions %>% 
   distinct(bnf_item_description) %>% 
   arrange(bnf_item_description)
@@ -153,65 +173,69 @@ tibble <- cholesterol_lowering_prescriptions %>%
 #atorvastatin, fluvastatin, nystatin, pravastatin, rosuvastatin, sandostatin, simvastatin, ecostatin.
 ```
 
-Grouping statins:
-Drugs were grouped due to the large variation in doses for each drug which makes the number of prescriptions themselves unclear. We are investigating the prescription frequency itself, not the variation of doses. We did grouping so that we could visualise and better answer the proposed hypothesis.
+Drugs were grouped due to the large variation in doses for each drug which makes the number of prescriptions themselves unclear. We are investigating the prescription frequency itself, not the variation of doses. We did grouping so that we could visualise and appropriately investigate the proposed hypothesis.
+
 ```{r}
+# joining with population data to find prescriptions per head. 
 grouped_cholesterol_lowering_prescriptions <- cholesterol_lowering_prescriptions %>% 
   left_join(population_data, by = c("hb_name" = "hb_name")) %>% 
+# extracting and grouping by statin drug group name, independent of dose used.
   mutate(drug_group = str_extract(bnf_item_description, "ATORVASTATIN|FLUVASTATIN|NYSTATIN|PRAVASTATIN|ROSUVASTATIN|SANDOSTATIN|SIMVASTATIN|ECOSTATIN")) %>% 
+# finding quantity per head.
   mutate(quantity_per_head = sum(paid_quantity)/mean(hb_population)) %>% 
   filter(!is.na(drug_group) & !is.na(hb_name))
 ```
 
-Plotting all statin drugs per head in each healthboard:
+## Creating vector
 ```{r}
-#creating vector to assign colours to each statin drug group
+# assign colors to each statin drug group
 drug_colors <- c(
-  "ATORVASTATIN" = "#a90c4b",
+  "ATORVASTATIN" = "indianred",
   "ECOSTATIN" = "snow3", 
   "FLUVASTATIN" = "sandybrown",
   "NYSTATIN" = "seashell",
   "PRAVASTATIN" = "pink3",
   "ROSUVASTATIN" = "salmon",
-  "SANDOSTATIN" = "indianred",
+  "SANDOSTATIN" = "#a90c4b",
   "SIMVASTATIN" = "lightpink"
 )
+```
 
+## Plotting number of statin prescriptions per head for each health board
+
+```{r}
 grouped_cholesterol_lowering_prescriptions_plot <- grouped_cholesterol_lowering_prescriptions %>% 
 ggplot(aes(x = drug_group, y = quantity_per_head, fill = drug_group)) +
   geom_col() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1), text = "Times New Roman") +
-  theme_custom1() +
+  theme_custom1() + # customised theme
   scale_fill_manual(values = c(drug_colors)) +
   facet_wrap(~hb_name) +
-  labs(title = "Number of prescriptions of cholesterol lowering drugs per head in Health Boards in Scotland in 2025", x = "Drug Group", y = "Quantity per Head", fill = "Drug Group")
-grouped_cholesterol_lowering_prescriptions_plot
+  labs(title = "Number of prescriptions of cholesterol lowering drugs per head in Health Boards \n in Scotland in 2025", x = "Drug Group", y = "Quantity per Head", fill = "Drug Group")
 
 grouped_cholesterol_lowering_prescriptions_plot_plotly <- plotly::ggplotly(grouped_cholesterol_lowering_prescriptions_plot, tooltip = "y") %>% 
    layout(plot_bgcolor = "#ffffe0")
 grouped_cholesterol_lowering_prescriptions_plot_plotly
 ```
 
-It is clear that 4 drugs stand out the most in the above plot. We found that atorvastatin is the most prescribed cholesterol lowering drug in Scotland by the NHS in 2024 and 2025. It is often the first to be prescribed, and can be frequently prescribed at a low dose for preventative measures. Therefore, we go on to look at the variation of different doses of atrovastatin among health boards in Scotland.
-In addition, we could explore atorvastatin, simvastatin, pravastatin, and rosuvastatin only as these are the only ones that appear in the plot.
+It is clear that four cholesterol-lowering drugs stand out the most in the above plot. We found that atorvastatin is the most prescribed cholesterol-lowering drug in Scotland by the NHS in 2024 and 2025. It is often the first to be prescribed, and can be frequently prescribed at a low dose for preventative measures. We will explore atorvastatin, simvastatin, pravastatin, and rosuvastatin only, as these are the only drugs that appear in this plot, so we are interested in them.
 
-Join health board names and jan-june 2025 data with population data 2019:
-```{r}
-pop_hb_joined <- grouped_cholesterol_lowering_prescriptions %>% 
-  left_join(population_data, by=c("hb_name" = "hb_name", "hb_population" = "hb_population"))
-```
+# Plot 3
+
+We are looking to investigate the correlation or relationship between the prescription of the four most prescribed cholesterol-lowering drugs in each health board, with the percentage of housholds in the upper socioeconomic percentile of that household.
+
+## Data Wrangling
  
- Remove unnecessary columns:
 ```{r}
-removed_joined_final <- pop_hb_joined %>% 
+# filtering for desired columns
+filtered_grouped_cholesterol <- grouped_cholesterol_lowering_prescriptions %>% 
   select(hbt, bnf_item_description, paid_quantity, hb_name, hb_population) %>% 
   arrange(desc(paid_quantity))
 ```
 
-PLOT 3: 4 most prescribed statin drugs:
 ```{r}
-#filtering for the 4 most prescribed statins
-four_statins <- removed_joined_final %>% 
+# filtering for the 4 most prescribed statins and using mutate to add this as a new column.
+four_statins <- filtered_grouped_cholesterol %>% 
   filter(str_detect(bnf_item_description, "ATORVASTATIN|SIMVASTATIN|PRAVASTATIN|ROSUVASTATIN")) %>% 
   mutate(quantity_per_head = paid_quantity/hb_population) %>% 
   mutate('drug_name' = case_when(str_starts(bnf_item_description, "ATORVA") ~ "ATORVASTATIN",
@@ -220,52 +244,52 @@ four_statins <- removed_joined_final %>%
                                str_starts(bnf_item_description, "ROSUVA") ~ "ROSUVASTATIN", TRUE ~ bnf_item_description))
 
 ```
- 
-The British Heart Foundation explains correlation between deprivation in Scotland and heart disease. In Scotland, those living in the most deprived areas are almost twice as likely to die from heart and cardiovascular disease before age 75.
-https://www.bhf.org.uk/what-we-do/our-research/heart-statistics/health-inequalities-research/cardiovascular-inequalities-in-scotland-an-analysis
 
-This graph shows the correlation between socioeconomic group and number of statin prescriptions er health board. It is clear that NHS Dumfries and Galloway has the highest number of total prescriptions, with the lowest percentage of the population in the upper socioeconomic group, while NHS Lothian has lowest number of prescriptions but highest percentage of the population in the upper percentile.
-
-TABLE 4:
-Table collating all data including: health board, se group, four statin distribution per health board.
 ```{r}
-#removing unwanted columns
-final_four_statins <- four_statins %>% 
-  select(-bnf_item_description, -hbt, -paid_quantity, -hb_population)
-
-
-#grouping four statin drugs independnet of dosage
+# grouping four statin drugs independnet of dosage
 grouped_statin_doses_sum <- four_statins %>% 
   select(-hbt, bnf_item_description, paid_quantity, hb_population) %>% 
   filter(str_detect(bnf_item_description, "ATORVASTATIN|PRAVASTATIN|ROSUVASTATIN|SIMVASTATIN")) %>% 
   group_by(hb_name, drug_name) %>% 
   summarise(total_quantity_per_head = sum(quantity_per_head)) 
   
-#now join statin data with se data
+# now joining four statin data with socioeconomic data
 table_data_joined <- grouped_statin_doses_sum %>% 
   full_join(se_data_upper, by = c("hb_name")) 
+```
 
-#PLOT 3:
-#plotting 4 statins with % in upper percentile SE
+## Plotting number of prescriptions and percentage of households in upper socioeconomic group
+
+```{r}
 line_plot <- table_data_joined %>% 
 ggplot(aes(x = hb_name)) +
   geom_col(aes(y = total_quantity_per_head, fill = drug_name)) +
-  geom_line(aes(y = upper_household_pct, group = 1), color = "black", size = 0.75) +
-  geom_text(aes(y = upper_household_pct, label = round(upper_household_pct, 2)), vjust = -2, size = 2.5, color = "black") +
-  scale_y_continuous(name = "Total Quantity per Head", sec.axis = sec_axis(~., name = "% in Upper SE Percentile")) +
+  geom_line(aes(y = upper_household_pct, group = 1), color = "white", size = 0.75) +
+  geom_text(aes(y = upper_household_pct, label = round(upper_household_pct, 2)), vjust = -2.5, size = 3, color = "white") +
+  scale_y_continuous(name = "Total Quantity per Head", sec.axis = sec_axis(~., name = "% in Upper SE Percentile")) + # creating two axes on the same plot
   scale_fill_manual(values = c(drug_colors)) +
-  labs(title = "The correlation between total statin prescription per head and % of population in upper SE percentile in each health board",
+  labs(title = "The correlation between total statin prescription per head and % of population \n in upper SE percentile in each health board",
        x = "Health Board", 
        fill = "Drug Name") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  theme_custom1()
+  theme_custom1() # customised theme
 line_plot
 
+# interactive plot
 line_plot_plotly <- plotly::ggplotly(line_plot, tooltip = "fill") %>% 
    layout(plot_bgcolor = "#ffffe0")
 line_plot_plotly
+```
 
-#creating a function for table theme
+The British Heart Foundation explains correlation between deprivation in Scotland and heart disease. In Scotland, those living in the most deprived areas are almost twice as likely to die from heart and cardiovascular disease before age 75 (Heart health inequalities, 2025).
+
+This graph shows the correlation between socioeconomic group and number of cholesterol-lowering prescriptions per health board. It is clear that NHS Dumfries and Galloway has the highest number of total prescriptions, with the lowest percentage of the population in the upper socioeconomic group (9.71%). Additionally, NHS Lothian has the lowest number of prescriptions but highest percentage of the population in the upper percentile (20.15%).
+
+# Table 4
+
+## Writing a function for table them
+
+```{r}
 theme_custom2 <- function(table_data_joined, ...){
   table_data_joined %>% 
     tab_options(table.background.color = "#ffffe0",
@@ -273,7 +297,11 @@ theme_custom2 <- function(table_data_joined, ...){
                 row_group.background.color = "sandybrown",
                 table.font.names = "Times New Roman")
 }
+```
 
+## Using gt plot to create a table of totaly number of statin prescriptions and percentage of households in the upper socioeconomic percentile per health board
+
+```{r}
 #create table
 table_data_joined %>% 
 gt() %>% 
@@ -291,22 +319,19 @@ gt() %>%
   tab_header(title = "Quantity per Head of Statin Prescriptions Across Scotland with Percentage of Population in Upper Socioeconomic Group",
              subtitle = "Among Health Boards in Scotland from July 2024 - June 2025") %>% 
   summary_rows(groups = everything(), columns = total_quantity_per_head, fns = list(total = "sum"), fmt = list(~ fmt_number(., decimals = 2))) %>% 
-  summary_rows(groups = everything(), columns = upper_household_pct, fns = list(average = "mean"), fmt = list(~ fmt_number(., decimals = 2))) %>% 
-  gt_plt_bar(upper_household_pct, labels = TRUE, width = 60, color = "#a90c4b", text = "outside-end")  %>% 
-  tab_options(table.width = pct(100), container.height = px(350), container.width  = px(600))
-
-
-
- 
+  summary_rows(groups = everything(), columns = upper_household_pct, fns = list(average = "mean"), fmt = list(~ fmt_number(., decimals = 2)))
 ```
 
-Conclusion:
+# Conclusion
 
-References:
+From this data, we can conclude that there is a sufficient correlation between number of statin prescriptions and percentage of population in the upper socioeconomic group in health boards across Scotland in 2024-2025. This data supports literature stating that factors such as increased BMI, smoking status, and emotional stress are more prevalent in deprived areas, and are there for more likely to lead to heart disease or cardiovascular complications, requiring cholesterol-lowering drugs. 
 
-https://pmc.ncbi.nlm.nih.gov/articles/PMC4232871/
 
-https://www.bhf.org.uk/what-we-do/our-research/heart-statistics/health-inequalities-research/
+# References
+
+Jones, N.R.V., Fischbacher, C.M., Guthrie, B., Leese, G., Lindsay, R.S., McKnight, J.A., Pearson, D., Philip, S., Sattar, N. and Wild, S.H. (2014). Factors associated with statin treatment for the primary prevention of cardiovascular disease in people within 2 years following diagnosis of diabetes in Scotland, 2006-2008. Diabetic Medicine, [online] 31(6), pp.640–646. doi:https://doi.org/10.1111/dme.12409.
+
+Heart health inequalities (2025). Heart health inequalities. [online] British Heart Foundation. Available at: https://www.bhf.org.uk/what-we-do/our-research/heart-statistics/health-inequalities-research/ [Accessed 22 Nov. 2025]. 
 
 
 
