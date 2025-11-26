@@ -226,7 +226,7 @@ grouped_cl_prescriptions_plotly <- ggplotly(
 grouped_cl_prescriptions_plotly
 ```
 
-It is clear that four cholesterol-lowering drugs stand out the most in the above plot. We found that atorvastatin is the most prescribed cholesterol-lowering drug in Scotland by the NHS in 2024 and 2025, followed by simvastatin, rosuvastatin, and pravastatin. Atorvastatin is often the first to be prescribed, and can be frequently prescribed for primary, secondary, and tertiarty prevention of coronary heart disease (McIver, 2020). We will explore atorvastatin, simvastatin, pravastatin, and rosuvastatin only, as these overwhelmingly dominate the cholesterol-lowering drug prescription trends in Scotland, as seen in Plot 2.
+It is clear that four cholesterol-lowering drugs stand out the most in the above plot. We found that atorvastatin is the most prescribed cholesterol-lowering drug in Scotland by the NHS in 2024 and 2025, followed by simvastatin, rosuvastatin, and pravastatin. This finding is supported by 2019 findings, reporting these to be the most used statin drugs, globally (Lippi et al., 2019). Atorvastatin is often the first to be prescribed, and can be frequently prescribed for primary, secondary, and tertiarty prevention of coronary heart disease (McIver, 2020). We will explore atorvastatin, simvastatin, pravastatin, and rosuvastatin only, as these overwhelmingly dominate the cholesterol-lowering drug prescription trends in Scotland, as seen in Plot 2.
 
 # Comparing SE data with cholesterol-lowering prescriptions: Plot 3
 
@@ -328,7 +328,9 @@ Heart health inequalities (2025). Heart health inequalities. [online] British He
 
 Jones, N.R.V., Fischbacher, C.M., Guthrie, B., Leese, G., Lindsay, R.S., McKnight, J.A., Pearson, D., Philip, S., Sattar, N. and Wild, S.H. (2014). Factors associated with statin treatment for the primary prevention of cardiovascular disease in people within 2 years following diagnosis of diabetes in Scotland, 2006-2008. Diabetic Medicine, [online] 31(6), pp.640–646. doi:https://doi.org/10.1111/dme.12409.
 
-Kimenai, D.M., Pirondini, L., Gregson, J., Prieto, D., Pocock, S.J., Perel, P., Hamilton, T., Welsh, P., Campbell, A., Porteous, D.J., Hayward, C., Sattar, N., Mills, N.L. and Shah, A.S.V. (2022). Socioeconomic Deprivation: An Important, Largely Unrecognized Risk Factor in Primary Prevention of Cardiovascular Disease. Circulation, 146(3), pp.240–248. doi:https://doi.org/10.1161/circulationaha.122.060042. 
+Kimenai, D.M., Pirondini, L., Gregson, J., Prieto, D., Pocock, S.J., Perel, P., Hamilton, T., Welsh, P., Campbell, A., Porteous, D.J., Hayward, C., Sattar, N., Mills, N.L. and Shah, A.S.V. (2022). Socioeconomic Deprivation: An Important, Largely Unrecognized Risk Factor in Primary Prevention of Cardiovascular Disease. Circulation, 146(3), pp.240–248. doi:https://doi.org/10.1161/circulationaha.122.060042.
+
+Lippi, G., Mattiuzzi, C. and Cervellin, G. (2019). Statins popularity: A global picture. British Journal of Clinical Pharmacology, [online] 85(7), pp.1614–1615. doi:https://doi.org/10.1111/bcp.13944.
 
 McIver, L.A. and Siddique, M.S. (2020). Atorvastatin. [online] Nih.gov. Available at: https://www.ncbi.nlm.nih.gov/books/NBK430779/. 
 
